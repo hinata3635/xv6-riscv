@@ -3,16 +3,29 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "memlayout.h" // PHYSTOPを利用するため
 
 void main();
 void timerinit();
 
 // entry.S needs one stack per CPU.
-__attribute__ ((aligned (16))) char stack0[4096 * NCPU];
+__attribute__((aligned(16))) char stack0[4096 * NCPU];
+
+// リンカスクリプトのendシンボルを参照
+extern char end[];
+
+void calculate_free_memory(void)
+{
+  uint64 total_free_memory = (uint64)PHYSTOP - (uint64)end;
+  uint64 num_pages = total_free_memory / 4096; // ページ数（1ページ=4096バイト）
+
+  // 結果を表示
+  cprintf("Free memory size: %d bytes\n", total_free_memory);
+  cprintf("Total pages: %d\n", num_pages);
+}
 
 // entry.S jumps here in machine mode on stack0.
-void
-start()
+void start()
 {
   // set M Previous Privilege mode to Supervisor, for mret.
   unsigned long x = r_mstatus();
@@ -49,18 +62,17 @@ start()
 }
 
 // ask each hart to generate timer interrupts.
-void
-timerinit()
+void timerinit()
 {
   // enable supervisor-mode timer interrupts.
   w_mie(r_mie() | MIE_STIE);
-  
+
   // enable the sstc extension (i.e. stimecmp).
-  w_menvcfg(r_menvcfg() | (1L << 63)); 
-  
+  w_menvcfg(r_menvcfg() | (1L << 63));
+
   // allow supervisor to use stimecmp and time.
   w_mcounteren(r_mcounteren() | 2);
-  
+
   // ask for the very first timer interrupt.
   w_stimecmp(r_time() + 1000000);
 }
